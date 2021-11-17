@@ -479,7 +479,7 @@ static int luaclose_openssl(lua_State *L)
   ERR_remove_thread_state(NULL);
 #endif
 #if defined(OPENSSL_THREADS)
-  CRYPTO_thread_cleanup();
+  /*CRYPTO_thread_cleanup();*/
 #endif
   CRYPTO_set_locking_callback(NULL);
   CRYPTO_set_id_callback(NULL);
@@ -520,7 +520,7 @@ LUALIB_API int luaopen_openssl(lua_State*L)
   {
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
 #if defined(OPENSSL_THREADS)
-    CRYPTO_thread_setup();
+    /*CRYPTO_thread_setup();*/
 #endif
 
     OpenSSL_add_all_ciphers();
