@@ -1,5 +1,6 @@
 local openssl = require 'openssl'
 local dsa = require'openssl'.dsa
+local helper = require'helper'
 
 TestDSA = {}
 function TestDSA:Testdsa()

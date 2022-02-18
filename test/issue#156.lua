@@ -1,10 +1,11 @@
+local lu = require 'luaunit'
+local helper = require('helper')
 local openssl = require('openssl')
+
+-- Please read https://www.openssl.org/docs/manmaster/man3/EVP_EncryptInit.html
+-- AEAD INTERFACE
+
 local supports = openssl.cipher.list()
-local function dump(v)
-    for k,v in pairs(v) do
-        print(k,v)
-    end
-end
 
 local function run_ccm(evp)
     --#aadcipher:key:iv:plaintext:ciphertext:aad:tag:0/1(decrypt/encrypt)
@@ -21,28 +22,21 @@ local function run_ccm(evp)
     local k = openssl.random(info.key_length)
     local m = openssl.random(info.key_length)
     local i = openssl.random(13)
-    local a = openssl.random(info.key_length)
-    local tn = 16
-    local tag = tn
-
+    local tn = 12
+    local tag = nil
 
     --encrypt
     local e = evp:encrypt_new()
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_IVLEN, #i))
-    assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_TAG, tag))
     assert(e:init(k, i))
-
-    local c = assert(e:update(#m))
-    assert(c==#m)
-    c = assert(e:update(a, true))
-    assert(c==#a)
     e:padding(false)
-    c = assert(e:update(m))
+
+    local c = assert(e:update(m))
     assert(#c==#m)
     c = c .. e:final()
     assert(#c==#m)
     -- Get the tag
-    tag = assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_GET_TAG, tag))
+    tag = assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_GET_TAG, tn))
     assert(#tag==tn)
 
     --decrypt
@@ -50,22 +44,18 @@ local function run_ccm(evp)
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_IVLEN, #i))
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_TAG, tag))
     assert(e:init(k, i))
-
-    local l = assert(e:update(#m))
-    assert(l==#m)
-    assert(e:update(a, true))
     e:padding(false)
+
     local r = assert(e:update(c))
     assert(#r==#c)
-    assert(r==m)
+    return (r==m)
 end
 
-local function run_gcm(evp)
+local function run_aead(evp, alg)
     local info = evp:info()
     local k = openssl.random(info.key_length)
     local m = openssl.random(info.key_length)
-    local i = openssl.random(13)
-    local a = openssl.random(info.key_length)
+    local i = openssl.random(info.iv_length)
     local tn = 16
     local tag = tn
 
@@ -73,14 +63,11 @@ local function run_gcm(evp)
     local e = evp:encrypt_new()
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_IVLEN, #i))
     assert(e:init(k, i))
-
-    local c = assert(e:update(a, true))
-    assert(c==#a)
     e:padding(false)
-    c = assert(e:update(m))
-    assert(#c==#m)
+
+    local c = assert(e:update(m))
     c = c .. e:final()
-    assert(#c==#m)
+    assert(#c==#m, alg)
     -- Get the tag
     tag = assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_GET_TAG, tag))
     assert(#tag==tn)
@@ -89,14 +76,13 @@ local function run_gcm(evp)
     e = evp:decrypt_new()
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_IVLEN, #i))
     assert(e:init(k, i))
-
-    assert(e:update(a, true))
     e:padding(false)
+
     local r = assert(e:update(c))
     assert(e:ctrl(openssl.cipher.EVP_CTRL_GCM_SET_TAG, tag))
     r = r .. assert(e:final())
     assert(#r==#c)
-    assert(r==m)
+    return (r==m)
 end
 
 local function run_xts(evp)
@@ -110,24 +96,25 @@ local function run_xts(evp)
 
     local d = evp:new(false, k, i, false)
     local r = d:update(c) .. d:final()
-    assert(r==m)
+    return (r==m)
 end
 
-local function run_basic(evp)
+local function run_basic(evp, alg)
     local info = evp:info()
     local k = openssl.random(info.key_length)
     local m = openssl.random(info.block_size)
     local i = nil
-    if info.mode==2 then
+    if info.iv_length > 0 then
         i = openssl.random(info.iv_length)
     end
 
     local e = evp:new (true, k, i, false)
     local c = e:update(m) .. e:final()
+    assert(#c==#m)
 
     local d = evp:new(false, k, i, false)
     local r = d:update(c) .. d:final()
-    assert(r==m)
+    return (r==m)
 end
 
 local function run(alg)
@@ -136,19 +123,22 @@ local function run(alg)
     local mode = alg:sub(-3, -1)
 
     if mode=='ccm' then
-        run_ccm(evp)
+        return run_ccm(evp)
     elseif mode=='gcm' then
-        run_gcm(evp)
+        return run_aead(evp, alg)
+    elseif mode=='ocb' then
+        return run_aead(evp, alg)
     elseif mode=='xts' then
-        run_xts(evp)
+        return run_xts(evp)
     else
-        run_basic(evp)
+        return run_basic(evp, alg)
     end
 end
 
-for _,v in pairs(supports) do
-    if(v:match('^aes%-...%-...$')) then
-        print('support '..v)
-        run(v)
-    end
+function testAESMode()
+  for _,v in pairs(supports) do
+      if(v:match('^aes.-%-...%-...$')) then
+          assert(run(v), "fail to run " .. v)
+      end
+  end
 end

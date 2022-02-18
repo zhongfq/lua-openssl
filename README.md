@@ -1,10 +1,11 @@
 lua-openssl toolkit - A free, MIT-licensed OpenSSL binding for Lua.
 
-[![Build Status](https://travis-ci.com/zhaozg/lua-openssl.svg)](https://travis-ci.com/zhaozg/lua-openssl)
+[![CI](https://github.com/zhaozg/lua-openssl/actions/workflows/ci.yml/badge.svg)](https://github.com/zhaozg/lua-openssl/actions/workflows/ci.yml)
 [![Build status](https://ci.appveyor.com/api/projects/status/f8xchhlj035yqq88/branch/master?svg=true)](https://ci.appveyor.com/project/zhaozg/lua-openssl/branch/master)
 [![Total alerts](https://img.shields.io/lgtm/alerts/g/zhaozg/lua-openssl.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/zhaozg/lua-openssl/alerts/)
 [![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/zhaozg/lua-openssl.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/zhaozg/lua-openssl/context:cpp)
 [![Coverage Status](https://coveralls.io/repos/github/zhaozg/lua-openssl/badge.svg?branch=master)](https://coveralls.io/github/zhaozg/lua-openssl?branch=master)
+[![luarocks](https://img.shields.io/luarocks/v/zhaozg/openssl)](https://luarocks.org/modules/zhaozg/openssl)
 
 # Index
 
@@ -29,8 +30,12 @@ The goal is to fully support openssl, include:
 - PKCS7/CMS.
 - SSL/TLS.
 
-Support backend include [OpenSSL](https://www.openssl.org/) and
-[LibreSSL](https://www.libressl.org/).
+This lua-openssl toolkit works with [Lua](https://www.lua.org/) 5.1/5.2/5.3/5.4 
+or [luajit](http://luajit.org/) 2.0/2.1, and [OpenSSL](https://www.openssl.org/) 
+0.9.8 or above 1.0.0 or [LibreSSL](https://www.libressl.org/).
+
+It is recommended to use the most up-to-date OpenSSL version because of the
+recent security fixes.
 
 Most of the lua-openssl functions require a key or certificate as argument, to
 make things easy to use OpenSSL.
@@ -50,8 +55,6 @@ digest, cipher, x509, pkcs7, cms and so on, be write as modules.
 ```lua
    local digest = require'openssl'.digest
    local cipher = require'openssl'.cipher
-   local crypto = require'crypto'
-   local ssl    = require'ssl'
 ```
 
 digest() equals with digest.digest(), same cipher() equals with cipher.cipher().
@@ -125,12 +128,6 @@ bn library:
 ```
 
 ### Version
-
-This lua-openssl toolkit works with Lua 5.1/5.2/5.3/5.4 or LuaJIT 2.0/2.1, and
-OpenSSL(0.9.8 or above 1.0.0) or LibreSSL(v2.8.x).
-
-It is recommended to use the most up-to-date OpenSSL version because of the
-recent security fixes.
 
 You can get version of lua-openssl, lua and OpenSSL from a Lua script.
 
@@ -213,7 +210,7 @@ SSL connection closed, other numbers means you should do some SSL operation.
 Please remember that when lua-openssl function or methods fail without an
 error code, you can get the last error by openssl.error(), and repeat call
 openssl.error() will walk through error stacks of current threads.
-openssl.error(true) will also clear error stacks after get last error code,
+openssl.errors(true) will also clear error stacks after return all errors,
 this is very useful to free memory when lua-openssl repeat calls or run long times.
 
 ## Example usage
@@ -347,7 +344,7 @@ For more examples, please see test lua script file.
 
 **_lua-openssl License_**
 
-Copyright (c) 2011 - 2014 zhaozg, zhaozg(at)gmail.com
+Copyright (c) 2011 - 2022 zhaozg, zhaozg(at)gmail.com
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to

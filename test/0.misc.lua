@@ -66,14 +66,14 @@ end
 function testAll()
   local t = openssl.list('digests')
   assert(type(t)=='table')
-  if not helper.libressl then
+  if not helper.openssl3 and not helper.libressl then
     assert(type(openssl.FIPS_mode())=='boolean')
   end
   local rand = openssl.random(1024)
   openssl.rand_add(rand)
   openssl.random(16, true)
 
-  local f = io.open('luasec/certs/rootB.cnf', 'r')
+  local f = io.open('certs/ca2.cnf', 'r')
   if f then
     local data = f:read('*a')
     f:close()
@@ -88,11 +88,11 @@ function testAll()
     t = conf:parse(true)
     lu.assertIsTable(t)
 
-    assert(conf:get_string('ca', 'default_ca'))
-    assert(conf:get_string('CA_default', 'default_days'))
+    assert(conf:get_string('ca', 'default_ca')=='CA_default')
+    assert(conf:get_number('CA_default', 'default_crl_days')==999)
     assert(conf:get_number('req', 'default_bits')==1024)
 
-    local c1 = openssl.lhash_load('luasec/certs/rootB.cnf')
+    local c1 = openssl.lhash_load('certs/ca1.cnf')
     t = c1:parse()
     assert(type(c1:export())=='string')
     lu.assertIsTable(t)

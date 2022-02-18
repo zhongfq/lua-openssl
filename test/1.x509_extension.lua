@@ -37,11 +37,51 @@ function TestX509ext:testSupport()
   assert(obj)
   assert(not ext.support(obj))
 
-  local subjectAltName = ext.new_extension {
-    object = 'subjectAltName',
-    value = "IP:192.168.0.1"
+  local exts = {
+    {
+      object = 'subjectAltName',
+      value = 'IP:192.168.1.1,RID:1.2.3.4'
+    },
+    {
+      object = 'subjectAltName',
+      value = 'IP:192.168.1.1'
+    },
+    {
+      object = 'subjectAltName',
+      value = 'DNS:abc.xyz'
+    },
+    {
+      object = 'subjectAltName',
+      value = 'URI:http://my.url.here/'
+    },
+    {
+      object = 'subjectAltName',
+      value = 'otherName:1.2.3.4;UTF8:some other identifier'
+    },
+    {
+      object = 'subjectAltName',
+      value = 'email:123@abc.com'
+    },
+    --{
+    --  object = 'subjectAltName',
+    --  value = 'x400Name:C=US/O=Organization/G=Nuno/CN=demo'
+    --},
+    --{
+    --  object = 'subjectAltName',
+    --  value = 'EdiPartyName:123@abc.com'
+    --},
+    --{
+    --  object = 'subjectAltName',
+    --  value = 'dirName:/C=NZ/CN=Jackov al-Trades'
+    --}
   }
-  assert(ext.support(subjectAltName))
+
+  for i=1, #exts do
+    local obj = ext.new_extension(exts[i])
+    assert(ext.support(obj))
+    lu.assertIsTable(obj:info())
+  end
+
 end
 
 function TestX509ext:testAll()
@@ -66,8 +106,8 @@ function TestX509ext:testAll()
 
   lu.assertEquals(n1:data():tostring(), 'CA:FALSE')
   lu.assertErrorMsgEquals(
-    'bad argument #2 to \'?\' (asn1_string type must be octet)', n1.data, n1,
-    self.timeStamping)
+    "bad argument #2 to '?' (only accpet asn1 octet string if is a asn1 string)",
+    n1.data, n1, self.timeStamping)
   assert(n1:data('CA:FALSE'))
   lu.assertEquals(n1:data(), self.cafalse)
 
@@ -76,4 +116,6 @@ function TestX509ext:testAll()
   local der = time:export()
   local t1 = ext.read_extension(der)
   assert(der == t1:export())
+
+  assert(n1:data(asn1.new_string('CA:FALSE', asn1.OCTET_STRING)))
 end

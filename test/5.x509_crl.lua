@@ -11,6 +11,7 @@ function TestCRL:setUp()
   self.dn = openssl.x509.name.new({{commonName = 'DEMO'},  {C = 'CN'}})
 
   self.digest = 'sha1WithRSAEncryption'
+  self.fake_subject = openssl.x509.name.new({{commonName = 'Fake'},  {C = 'CN'}})
 end
 
 function TestCRL:testReason()
@@ -21,15 +22,28 @@ end
 function TestCRL:testNew()
   local ca = helper.get_ca()
 
+  local pkey = assert(openssl.pkey.new())
+  local fake = assert(csr.new(self.fake_subject, pkey))
+  fake = assert(fake:to_x509(pkey, 3650)) -- self sign
+
+  local other = crl.new()
+  assert(other:issuer(ca.cacert))
+  assert(other:version(0))
+  assert(other:lastUpdate(os.time()))
+  assert(other:nextUpdate(os.time() + 24*3600))
+  local ret, err = other:sign(ca.pkey, fake)
+  assert(not ret)
+  lu.assertStrMatches("private key not match with cacert", err)
+
   local list = assert(crl.new({
     {sn = 1,  time = os.time()},  {sn = 2,  time = os.time()},
     {sn = 3,  time = os.time()},  {sn = 4,  time = os.time()}
   }, ca.cacert, ca.pkey))
   assert(#list == 4)
   -- print_r(list:parse())
-  local other = crl.new()
+  other = crl.new()
   assert(other:issuer(ca.cacert:issuer()))
-  local issuer = other:issuer()
+  issuer = other:issuer()
   assert(other:issuer(ca.cacert))
   assert(issuer:cmp(other:issuer()))
   assert(other:version(0))
@@ -45,7 +59,8 @@ function TestCRL:testNew()
   assert(other:verify(ca.cacert))
   local pem = other:export()
 
-  assert(other:updateTime(os.time(), os.time()+3600))
+  assert(other:updateTime(3600))
+  assert(other:updateTime(os.time(), 3600))
 
   assert(other:extensions({
     openssl.x509.extension.new_extension(
@@ -62,13 +77,10 @@ function TestCRL:testNew()
   assert(other:sign(ca.pkey, ca.cacert:issuer()))
   assert(other:verify(ca.cacert))
   assert(other:verify(ca.pkey))
-  if (other.check) then
-    --FIXME:
-    --assert(other:check(ca.pkey))
-  end
 
   assert(other:export())
   local info = other:parse()
+
   assert(type(info.revoked)=='table')
   assert(type(info.extensions)=='table')
   local t = other:get(0, true)

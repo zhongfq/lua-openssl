@@ -1,6 +1,7 @@
 local lu = require 'luaunit'
 local openssl = require 'openssl'
 local digest = require'openssl'.digest
+local helper = require'helper'
 local unpack = unpack or table.unpack
 
 TestDigestCompat = {}
@@ -22,7 +23,17 @@ function TestDigestCompat:testDigest()
   lu.assertEquals(a, b)
   c = digest.digest(self.alg, self.msg, true)
   lu.assertEquals(#c, 20)
+
+  local o = openssl.asn1.new_object(self.alg)
+  assert(type(o:nid())=='number')
+
+  c = digest.digest(o:nid(), self.msg, true)
+  lu.assertEquals(#c, 20)
+
+  c = digest.digest(o, self.msg, true)
+  lu.assertEquals(#c, 20)
 end
+
 function TestDigestCompat:testObject()
   local a, b, c, aa, bb
   local obj = digest.new(self.alg)
@@ -39,11 +50,11 @@ function TestDigestCompat:testObject()
   lu.assertEquals(2 * #c, #a)
 
   obj:reset()
-  local obj1 = obj:clone()
-
   obj:update(self.msg)
   aa = obj:final(self.msg)
-  bb = obj1:final(self.msg .. self.msg)
+
+  obj:reset()
+  bb = obj:final(self.msg .. self.msg)
   lu.assertEquals(aa, bb)
 end
 
@@ -62,6 +73,7 @@ function TestDigestMY:testList()
   assert(type(t)=='string')
   assert(#t==20)
 
+  if not helper.openssl3 then
   local ctx1 = md:new()
   t1 = ctx1:info()
   assert(ctx1:update('ab'))
@@ -74,6 +86,7 @@ function TestDigestMY:testList()
   assert(ctx:update('cd'))
   t2 = ctx:final(true)
   assert(t==t2)
+  end
 end
 
 local function mk_key(args)

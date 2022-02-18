@@ -204,7 +204,11 @@ int openssl_push_bit_string_bitname(lua_State* L, const BIT_STRING_BITNAME* name
 static const char* sPadding[] =
 {
   "pkcs1",
+#ifdef RSA_SSLV23_PADDING
+#if !defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x3020000fL
   "sslv23",
+#endif
+#endif
   "no",
   "oaep",
   "x931",
@@ -217,7 +221,11 @@ static const char* sPadding[] =
 static int iPadding[] =
 {
   RSA_PKCS1_PADDING,
+#ifdef RSA_SSLV23_PADDING
+#if !defined(LIBRESSL_VERSION_NUMBER) || LIBRESSL_VERSION_NUMBER < 0x3020000fL
   RSA_SSLV23_PADDING,
+#endif
+#endif
   RSA_NO_PADDING,
   RSA_PKCS1_OAEP_PADDING,
   RSA_X931_PADDING,
@@ -265,8 +273,7 @@ static const char bin[256] =
 int hex2bin(const char * src, unsigned char *dst, int len)
 {
   int i;
-  if (len == 0)
-    len = strlen(src);
+  if (len == 0) len = strlen(src);
   for (i = 0; i < len; i += 2)
   {
     unsigned char h = src[i];
@@ -302,22 +309,27 @@ int openssl_pusherror (lua_State *L, const char *fmt, ...)
 int openssl_pushargerror (lua_State *L, int arg, const char *extramsg)
 {
   lua_Debug ar;
-  if (!lua_getstack(L, 0, &ar))  /* no stack frame? */
-    return openssl_pusherror(L, "bad argument #%d (%s)", arg, extramsg);
-  lua_getinfo(L, "n", &ar);
-  if (strcmp(ar.namewhat, "method") == 0)
+  const char* name;
+
+  if (lua_getstack(L, 0, &ar))  /* have stack frame? */
   {
-    arg--;  /* do not count 'self' */
-    if (arg == 0)  /* error is in the self argument itself? */
-      return openssl_pusherror(L, "calling '%s' on bad self (%s)",
-                               ar.name, extramsg);
-  }
-  if (ar.name == NULL)
-#if !defined(COMPAT53_C_) || LUA_VERSION_NUM == 502
-    ar.name = "?";
+    lua_getinfo(L, "n", &ar);
+    if (strcmp(ar.namewhat, "method") == 0)
+    {
+      arg--;
+      /* do not count 'self' */
+      if (arg == 0)  /* error is in the self argument itself? */
+        return openssl_pusherror(L, "calling '%s' on bad self (%s)",
+                                 ar.name, extramsg);
+    }
+    if (ar.name == NULL)
+#if defined(COMPAT53_C_) || LUA_VERSION_NUM != 502
+      name = "?";
 #else
-    ar.name = (compat53_pushglobalfuncname(L, &ar)) ? lua_tostring(L, -1) : "?";
+      name = (compat53_pushglobalfuncname(L, &ar)) ? lua_tostring(L, -1) : "?";
 #endif
+  }
+
   return openssl_pusherror(L, "bad argument #%d to '%s' (%s)",
-                           arg, ar.name, extramsg);
+                           arg, name, extramsg);
 }

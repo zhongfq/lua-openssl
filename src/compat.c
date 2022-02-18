@@ -33,11 +33,18 @@ int SSL_up_ref(SSL *ssl)
   return 1;
 }
 
+int SSL_CTX_up_ref(SSL_CTX *ctx)
+{
+  CRYPTO_add(&ctx->references, 1, CRYPTO_LOCK_SSL_CTX);
+  return 1;
+}
+
 int SSL_SESSION_up_ref(SSL_SESSION *sess)
 {
   CRYPTO_add(&sess->references, 1, CRYPTO_LOCK_SSL_SESSION);
   return 1;
 }
+
 #endif
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
@@ -408,18 +415,30 @@ int RSA_set0_crt_params(RSA *r, BIGNUM *dmp1, BIGNUM *dmq1, BIGNUM *iqmp)
 #if !defined(LIBRESSL_VERSION_NUMBER)
 EVP_MD_CTX *EVP_MD_CTX_new(void)
 {
+#if OPENSSL_VERSION_NUMBER > 0x30000000L
+  return EVP_MD_CTX_new();
+#else
   return OPENSSL_malloc(sizeof(EVP_MD_CTX));
+#endif
 }
 
 int EVP_MD_CTX_reset(EVP_MD_CTX *ctx)
 {
+#if OPENSSL_VERSION_NUMBER > 0x30000000L
+  return EVP_MD_CTX_reset(ctx);
+#else
   return EVP_MD_CTX_cleanup(ctx);
+#endif
 }
 
 void EVP_MD_CTX_free(EVP_MD_CTX *ctx)
 {
+#if OPENSSL_VERSION_NUMBER > 0x30000000L
+  EVP_MD_CTX_free(ctx);
+#else
   EVP_MD_CTX_cleanup(ctx);
   OPENSSL_free(ctx);
+#endif
 }
 
 void X509_REQ_get0_signature(const X509_REQ *req, const ASN1_BIT_STRING **psig,
@@ -568,6 +587,7 @@ STACK_OF(X509) *TS_VERIFY_CTS_set_certs(TS_VERIFY_CTX *ctx,
 unsigned char *TS_VERIFY_CTX_set_imprint(TS_VERIFY_CTX *ctx,
     unsigned char *hexstr, long len)
 {
+  OPENSSL_free(ctx->imprint);
   ctx->imprint = hexstr;
   ctx->imprint_len = len;
   return ctx->imprint;
@@ -578,6 +598,49 @@ const unsigned char *ASN1_STRING_get0_data(const ASN1_STRING *x)
 {
   return x->data;
 }
+
+const OCSP_CERTID *OCSP_SINGLERESP_get0_id(const OCSP_SINGLERESP *single)
+{
+    return single->certId;
+}
 #endif
+
+const ASN1_GENERALIZEDTIME *OCSP_resp_get0_produced_at(const OCSP_BASICRESP* bs)
+{
+    return bs->tbsResponseData->producedAt;
+}
+
+const STACK_OF(X509) *OCSP_resp_get0_certs(const OCSP_BASICRESP *bs)
+{
+    return bs->certs;
+}
+
+int OCSP_resp_get0_id(const OCSP_BASICRESP *bs,
+                      const ASN1_OCTET_STRING **pid,
+                      const X509_NAME **pname)
+{
+    const OCSP_RESPID *rid = bs->tbsResponseData->responderId;
+
+    if (rid->type == V_OCSP_RESPID_NAME) {
+        *pname = rid->value.byName;
+        *pid = NULL;
+    } else if (rid->type == V_OCSP_RESPID_KEY) {
+        *pid = rid->value.byKey;
+        *pname = NULL;
+    } else {
+        return 0;
+    }
+    return 1;
+}
+
+const ASN1_OCTET_STRING *OCSP_resp_get0_signature(const OCSP_BASICRESP *bs)
+{
+    return bs->signature;
+}
+
+const X509_ALGOR *OCSP_resp_get0_tbs_sigalg(const OCSP_BASICRESP *bs)
+{
+    return bs->signatureAlgorithm;
+}
 
 #endif /* < 1.1.0 */

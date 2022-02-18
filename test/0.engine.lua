@@ -61,7 +61,20 @@ function TestEngine:testAll()
   eng:set_rand_engine()
   eng:load_public_key("public_key")
   eng:load_private_key("private_key")
-  openssl.error(true)
+  print(openssl.errors())
+
+  -- just cover code
+  -- ENGINE_CTRL_HAS_CTRL_FUNCTION  10
+  local num, val = 10, 0
+  val = eng:ctrl(num)
+  -- ENGINE_CTRL_GET_FIRST_CMD_TYPE 11
+  num = 11
+  val = eng:ctrl(num, 0)
+
+  val = eng:ctrl('CMD', 0)
+  val = eng:ctrl('CMD', 0, eng)
+  val = eng:ctrl('CMD', '', 0)
+  openssl.errors()
 end
 
 function TestEngine:testLoop()

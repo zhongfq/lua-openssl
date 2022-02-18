@@ -1,6 +1,7 @@
 local lu = require 'luaunit'
 local openssl = require 'openssl'
 local cipher = require'openssl'.cipher
+local helper = require'helper'
 
 TestCipherCompat = {}
 
@@ -15,8 +16,10 @@ function TestCipherCompat:setUp()
 
   lu.assertEquals('nil', type(getmetatable(cipher)))
 end
+
 function TestCipherCompat:tearDown()
 end
+
 function TestCipherCompat:testCipher()
   local a, b, c, d
 
@@ -28,6 +31,14 @@ function TestCipherCompat:testCipher()
   c = cipher.encrypt(self.alg, self.msg, self.key, self.iv)
   lu.assertEquals(c, a)
   d = cipher.decrypt(self.alg, c, self.key, self.iv)
+  lu.assertEquals(d, self.msg)
+
+  local o = openssl.asn1.new_object(self.alg)
+  assert(type(o:nid())=='number')
+
+  c = cipher.encrypt(o, self.msg, self.key, self.iv)
+  lu.assertEquals(c, a)
+  d = cipher.decrypt(o:nid(), c, self.key, self.iv)
   lu.assertEquals(d, self.msg)
 end
 
@@ -42,21 +53,22 @@ function TestCipherCompat:testObject()
 
   local info = obj:info()
   --
-  -- assert(info.name)
   assert(info.block_size)
   assert(info.key_length)
   assert(info.iv_length)
   assert(info.flags)
   assert(info.mode)
 
-  --FIXME:
-  --obj:ctrl
+  if helper.openssl3 then
+    assert(obj:ctrl(openssl.cipher.EVP_CTRL_INIT))
+  else
+    obj:ctrl(openssl.cipher.EVP_CTRL_INIT)
+  end
 
-  --FIXME:
-  --obj:init(self.key)
-  --b = assert(obj:update(self.msg))
-  --b = b .. obj:final()
-  --assert(a==b)
+  obj:init(self.key, self.iv, true)
+  b = assert(obj:update(self.msg))
+  b = b .. obj:final()
+  assert(a==b)
 
   obj1 = cipher.new(self.alg, false, self.key, self.iv)
   b = assert(obj1:update(a))

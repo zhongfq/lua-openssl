@@ -6,8 +6,7 @@ TestX509Algor = {}
 
 function TestX509Algor:testAll()
   local alg1 = algor.new()
-  --FIXME
-  --assert(alg1:dup() == nil)
+  assert(alg1:dup() == nil)
   local alg2 = algor.new()
   if alg1.equals then
     assert(alg1:equals(alg2))
@@ -22,7 +21,6 @@ function TestX509Algor:testAll()
   local o1 = openssl.asn1.new_object('C')
   alg1:set(o1)
   local a, b = alg1:get()
-  print(tostring(a))
   assert(tostring(a):match('openssl.asn1_object:'))
   assert(b==nil)
 

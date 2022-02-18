@@ -10,16 +10,7 @@ host = arg[1] or "127.0.0.1"; -- only ip
 port = arg[2] or "8383";
 loop = arg[3] and tonumber(arg[3]) or 100
 
-local params = {
-  mode = "server",
-  protocol = ssl.default.."_server",
-  key = "luasec/certs/serverAkey.pem",
-  certificate = "luasec/certs/serverA.pem",
-  cafile = "luasec/certs/rootA.pem",
-  verify = ssl.peer + ssl.fail,
-  options = {"all",  "no_sslv2"},
-  ciphers = "ALL:!ECDHE"
-}
+local params = sslctx.server
 
 --
 local certstore
@@ -44,11 +35,11 @@ assert(ctx:quiet_shutdown()==1)
 
 ctx:verify_mode(ssl.peer, function(_arg)
   --[[
-            --do some check
-            for k,v in pairs(arg) do
-                  print(k,v)
-            end
-            --]]
+  --do some check
+  for k,v in pairs(arg) do
+        print(k,v)
+  end
+  --]]
   return true -- return false will fail ssh handshake
 end)
 
@@ -64,14 +55,22 @@ local function ssl_mode()
   if srv then
     print('listen BIO:', srv)
     assert(srv:accept(true), 'Error in accept BIO') -- make real listen
+    print('accpeting...')
+    io.flush()
     while i < loop do
       local cli = assert(srv:accept(), 'Error in ssl connection') -- bio tcp
+      io.write('+')
+      io.flush()
       assert(cli:handshake(), 'handshake fail')
       repeat
         local d = cli:read()
-        if d then cli:write(d) end
+        if d then
+          assert(#d == cli:write(d))
+        end
       until not d
-      cli:close()
+      assert(cli:ssl())
+      cli:shutdown()
+      cli:close(true)
       collectgarbage()
       i = i + 1
     end
@@ -80,4 +79,4 @@ local function ssl_mode()
 end
 
 ssl_mode()
-print(openssl.error(true))
+print(openssl.errors())

@@ -179,7 +179,7 @@ static int openssl_ts_accuracy_new(lua_State *L)
 
   seconds = luaL_checkinteger(L, 1);
   millis = luaL_optinteger(L, 2, millis);
-  micros = luaL_optinteger(L, 0, micros);
+  micros = luaL_optinteger(L, 3, micros);
 
   accuracy = TS_ACCURACY_new();
   sec = ASN1_INTEGER_new();
@@ -188,9 +188,21 @@ static int openssl_ts_accuracy_new(lua_State *L)
 
   ret = ASN1_INTEGER_set(sec, (long)seconds);
   if (ret==1)
-    ASN1_INTEGER_set(mil, millis);
+    ret = TS_ACCURACY_set_seconds(accuracy, sec);
+
   if (ret==1)
-    ASN1_INTEGER_set(mic, micros);
+  {
+    ret = ASN1_INTEGER_set(mil, millis);
+    if (ret==1)
+      ret = TS_ACCURACY_set_millis(accuracy, mil);
+  }
+
+  if (ret==1)
+  {
+    ret = ASN1_INTEGER_set(mic, micros);
+    if (ret==1)
+      ret = TS_ACCURACY_set_micros(accuracy, mic);
+  }
 
   if (ret==1)
   {
@@ -911,7 +923,6 @@ static LUA_FUNCTION(openssl_ts_req_add_ext)
   int loc = luaL_optint(L, 3, TS_REQ_get_ext_count(ts_req));
   int ret;
 
-  x = X509_EXTENSION_dup(x);
   ret = TS_REQ_add_ext(ts_req, x, loc);
   return openssl_pushresult(L, ret);
 }
@@ -1663,15 +1674,11 @@ static int openssl_ts_verify_ctx_store(lua_State*L)
 }
 
 /***
-get flags
-@function flags
-@treturn integer flags
-*/
-/***
-set flags
+set or add flags
 @function flags
 @tparam integer flags
-@treturn boolean result
+@tparam[opt=nil] boolean add or set flags, default to do set
+@treturn integer return current value
 */
 static int openssl_ts_verify_ctx_flags(lua_State*L)
 {
@@ -1686,11 +1693,6 @@ static int openssl_ts_verify_ctx_flags(lua_State*L)
   return 1;
 }
 
-/***
-get data
-@function data
-@treturn bio data object
-*/
 /***
 set data
 @function data
@@ -1736,6 +1738,7 @@ static LUA_FUNCTION(openssl_ts_verify_ctx_gc)
     CRYPTO_add(&ctx->store->references, -1, CRYPTO_LOCK_X509_STORE);
   ctx->store = NULL;
 #endif
+  TS_VERIFY_CTX_cleanup(ctx);
   TS_VERIFY_CTX_free(ctx);
   return 0;
 }

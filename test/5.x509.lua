@@ -43,8 +43,9 @@ function TestX509:testNew()
   assert(cert:check(store))
   assert(cert:verify(ca.cacert:pubkey()))
 
-  local x, y, z = cert:verify()
-  assert(x and y and z)
+  local x, t = cert:verify()
+  assert(x)
+  assert(type(t)=='table')
 
   local s = cert:export('der')
   x = x509.read(s, 'der')
@@ -88,7 +89,6 @@ function TestX509:testNew()
     {
       object = 'subjectAltName',
       value = 'IP:192.168.1.1'
-
     }
   }
 

@@ -13,7 +13,7 @@ local function load(path)
     end
 end
 
-function M.new(params)
+function M.new(params, protocol)
 --[[
 local params = {
    mode = "server",
@@ -26,8 +26,8 @@ local params = {
    password = 'password'
 }
 --]]
-    local protocol = params.protocol and string.upper(string.sub(params.protocol,1,3))
-        ..string.sub(params.protocol,4,-1) or helper.sslProtocol()
+    protocol = protocol or (params.protocol and string.upper(string.sub(params.protocol,1,3))
+        ..string.sub(params.protocol,4,-1) or helper.sslProtocol())
     local ctx = ssl.ctx_new(protocol,params.ciphers)
     local xkey = nil
     if (type(params.password)=='nil') then
@@ -79,5 +79,48 @@ local params = {
     end
     return ctx
 end
+
+M.client = {
+  mode = "client",
+  protocol = ssl.default,
+  key = "certs/agent4-key.pem",
+  certificate = "certs/agent4-cert.pem",
+  cafile = "certs/ca2-cert.pem",
+  verify = ssl.peer + ssl.fail,
+  options = { "all", "no_sslv2" },
+  ciphers = "ALL:!ECDHE",
+}
+
+M.server = {
+  mode = "server",
+  protocol = ssl.default,
+  key = "certs/agent3-key.pem",
+  certificate = "certs/agent3-cert.pem",
+  cafile = "certs/ca2-cert.pem",
+  verify = ssl.peer + ssl.fail,
+  options = { "all", "no_sslv2" },
+}
+
+M.server01 = {
+  mode = "server",
+  protocol = ssl.default,
+  key = "certs/agent3-key.pem",
+  certificate = "certs/agent3-cert.pem",
+  cafile = "certs/ca2-cert.pem",
+  verify = ssl.none,
+  options = { "all", "no_sslv2" },
+  ciphers = "ALL:!ADH:@STRENGTH",
+}
+
+M.server02 = {
+  mode = "server",
+  protocol = ssl.default,
+  key = "certs/agent1-key.pem",
+  certificate = "certs/agent1-cert.pem",
+  cafile = "certs/ca1-cert.pem",
+  verify = ssl.none,
+  options = { "all", "no_sslv2" },
+  ciphers = "ALL:!ADH:@STRENGTH",
+}
 
 return M

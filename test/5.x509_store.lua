@@ -11,13 +11,13 @@ function TestStore:testAll()
   assert(store:trust(true))
   store:add(ca.cacert)
   store:add(ca.crl)
-  store:load('luasec/certs/serverA.pem', 'luasec/certs')
-  store:add_lookup('luasec/certs', 'dir', 'pem')
-  store:add_lookup('luasec/certs/serverA.pem', 'file', 'pem')
-  store:depth(9)
-  store:flags(0)
+  assert(store:load('certs/agent1-cert.pem', 'certs'))
+  assert(store:add_lookup('certs', 'dir', 'pem'))
+  assert(store:add_lookup('certs/agent1-cert.pem', 'file', 'pem'))
+  assert(store:depth(9))
+  assert(store:flags(0))
   store:add({ca.cacert, ca.crl})
-  --FIXME
-  --store:purpose()
+
+  assert(store:purpose(1))
 end
 

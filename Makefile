@@ -47,6 +47,30 @@ endif
 OPENSSL_CFLAGS	?= $(shell $(PKG_CONFIG) openssl --cflags)
 OPENSSL_LIBS	?= $(shell $(PKG_CONFIG) openssl --static --libs)
 
+TARGET  = $(MAKECMDGOALS)
+ifeq (coveralls, ${TARGET})
+  CFLAGS	+=-g -fprofile-arcs -ftest-coverage
+  LDFLAGS	+=-g -fprofile-arcs
+endif
+
+ifeq (asan, ${TARGET})
+  ASAN_LIB       = $(shell dirname $(shell dirname $(shell clang -print-libgcc-file-name)))/darwin/libclang_rt.asan_osx_dynamic.dylib
+  CC             = clang
+  LD             = clang
+  CFLAGS	+=-g -O0 -fsanitize=address,undefined
+  LDFLAGS       +=-g -fsanitize=address
+endif
+
+ifeq (debug, ${TARGET})
+  CFLAGS	+=-g -Og
+  LDFLAGS       +=-g -Og
+endif
+
+ifeq (valgrind, ${TARGET})
+  CFLAGS	+=-g -O0
+  LDFLAGS	+=-g -O0
+endif
+
 ifneq (, $(findstring linux, $(SYS)))
   # Do linux things
   CFLAGS	+= -fPIC
@@ -56,7 +80,7 @@ endif
 ifneq (, $(findstring apple, $(SYS)))
   # Do darwin things
   CFLAGS	+= -fPIC
-  LDFLAGS	+= -fPIC -undefined dynamic_lookup -ldl
+  LDFLAGS	+= -fPIC -Wl,-undefined,dynamic_lookup -ldl
   MACOSX_DEPLOYMENT_TARGET="10.12"
   CC		:= MACOSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET} $(CC)
 endif
@@ -82,8 +106,6 @@ ifeq (.config, $(wildcard .config))
   include .config
 endif
 
-LIBNAME= $T.so.$V
-
 CFLAGS		+= $(OPENSSL_CFLAGS) $(LUA_CFLAGS) $(TARGET_FLAGS)
 LDFLAGS		+= $(OPENSSL_LIBS)
 # Compilation directives
@@ -100,7 +122,7 @@ OBJS=src/asn1.o deps/auxiliar/auxiliar.o src/bio.o src/cipher.o src/cms.o src/co
      src/x509.o src/xattrs.o src/xexts.o src/xname.o src/xstore.o src/xalgor.o         \
      src/callback.o src/srp.o deps/auxiliar/subsidiar.o
 
-.PHONY: all install test info doc
+.PHONY: all install test info doc coveralls asan
 
 .c.o:
 	$(CC) $(CFLAGS) -c -o $@ $?
@@ -127,9 +149,29 @@ info:
 	@echo "PREFIX:" $(PREFIX)
 
 test:	all
-	cd test && LUA_CPATH=../?.so $(LUA) test.lua && cd ..
+	cd test && LUA_CPATH=$(shell pwd)/?.so $(shell which $(LUA)) test.lua -v && cd ..
+
+debug: all
+
+coveralls: test
+ifeq ($(CI),)
+	lcov -c -d src -o ${T}.info
+	genhtml -o ${T}.html -t "${T} coverage" --num-spaces 2 ${T}.info
+endif
+
+valgrind: all
+	cd test && LUA_CPATH=$(shell pwd)/?.so \
+	valgrind --gen-suppressions=all --suppressions=../.github/lua-openssl.supp \
+	--error-exitcode=1 --leak-check=full --child-silent-after-fork=yes \
+	$(LUA) test.lua && cd ..
+
+asan: all
+	export ASAN_LIB=$(ASAN_LIB) && \
+	cd test && LUA_CPATH=$(shell pwd)/?.so \
+	DYLD_INSERT_LIBRARIES=$(ASAN_LIB) \
+	$(LUA) test.lua && cd ..
 
 clean:
-	rm -f $T.so lib$T.a $(OBJS)
+	rm -rf $T.* lib$T.a $(OBJS) src/*.g*
 
 # vim: ts=8 sw=8 noet
