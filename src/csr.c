@@ -1,6 +1,6 @@
 /***
-x509.req module for lua-openssl binding, provide x509_req as lua object.
-create and manage x509 certificate sign request
+x509.req module to mapping `X509_REQ` to lua object, creates and processes certificate requests (CSRs) in PKCS#10 format.
+
 @module x509.req
 @usage
   req = require'openssl'.x509.req
@@ -116,14 +116,76 @@ static luaL_Reg R[] =
   {NULL,    NULL}
 };
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+static X509 *X509_REQ_to_X509_ex(X509_REQ *r, int days, EVP_PKEY *pkey, const EVP_MD* md)
+{
+  X509 *ret = NULL;
+  X509_CINF *xi = NULL;
+  X509_NAME *xn;
+  EVP_PKEY *pubkey = NULL;
+  int res;
+
+  if ((ret = X509_new()) == NULL)
+  {
+    X509err(X509_F_X509_REQ_TO_X509, ERR_R_MALLOC_FAILURE);
+    return NULL;
+  }
+
+  /* duplicate the request */
+  xi = ret->cert_info;
+
+  if (sk_X509_ATTRIBUTE_num(r->req_info->attributes) != 0)
+  {
+    if ((xi->version = M_ASN1_INTEGER_new()) == NULL)
+      goto err;
+    if (!ASN1_INTEGER_set(xi->version, 2))
+      goto err;
+    /*-     xi->extensions=ri->attributes; <- bad, should not ever be done
+    ri->attributes=NULL; */
+  }
+
+  xn = X509_REQ_get_subject_name(r);
+  if (X509_set_subject_name(ret, xn) == 0)
+    goto err;
+  if (X509_set_issuer_name(ret, xn) == 0)
+    goto err;
+
+  if (X509_gmtime_adj(xi->validity->notBefore, 0) == NULL)
+    goto err;
+  if (X509_gmtime_adj(xi->validity->notAfter, (long)60 * 60 * 24 * days) ==
+      NULL)
+    goto err;
+
+  pubkey = X509_REQ_get_pubkey(r);
+  res = X509_set_pubkey(ret, pubkey);
+  EVP_PKEY_free(pubkey);
+
+  if (!md)
+    goto err;
+  if (!res || !X509_sign(ret, pkey, md))
+    goto err;
+  if (0)
+  {
+err:
+    X509_free(ret);
+    ret = NULL;
+  }
+  return (ret);
+}
+#endif
+
 /***
 openssl.x509_req object
 @type x509_req
 */
 
 /***
-convert x509_req to x509 object
+convert x509_req to x509 object and sign it
 @function to_x509
+@tparam x509_req csr
+@tparam evp_pkey prikey
+@tparam[opt=365] number days
+@tparam[opt='sha256'] evp_md|string md_alg default use sha256
 @treturn x509 object not signed
 */
 static LUA_FUNCTION(openssl_csr_to_x509)
@@ -131,15 +193,20 @@ static LUA_FUNCTION(openssl_csr_to_x509)
   X509_REQ * csr  = CHECK_OBJECT(1, X509_REQ, "openssl.x509_req");
   EVP_PKEY * pkey = CHECK_OBJECT(2, EVP_PKEY, "openssl.evp_pkey");
   int days = luaL_optint(L, 3, 365);
+  const EVP_MD* md = get_digest(L, 4, "sha256");
 
+  X509* cert = NULL;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
   /*
     X509_REQ_to_X509 default use EVP_md5() as digest method
     X509* cert = X509_REQ_to_X509(csr, days, pkey);
   */
-  X509* cert = X509_REQ_to_X509(csr, days, pkey);
+  cert = X509_REQ_to_X509_ex(csr, days, pkey, md);
+#else
+  cert = X509_REQ_to_X509(csr, days, pkey);
   if (cert)
   {
-    const EVP_MD* md = get_digest(L, 4, "sha256");
     // do resign with digest
     if (!X509_sign(cert, pkey, md))
     {
@@ -147,6 +214,7 @@ static LUA_FUNCTION(openssl_csr_to_x509)
       cert = NULL;
     }
   }
+#endif
 
   if (cert)
     PUSH_OBJECT(cert, "openssl.x509");
@@ -189,7 +257,7 @@ static LUA_FUNCTION(openssl_csr_export)
 /***
 get digest of x509_req
 @function digest
-@tparam[opt='SHA1'] evp_md|string md_alg default use sha1
+@tparam[opt='sha256'] evp_md|string md_alg default use sha256
 @treturn string digest result
 */
 static LUA_FUNCTION(openssl_csr_digest)
